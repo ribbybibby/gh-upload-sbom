@@ -1,10 +1,12 @@
 const fs = require('fs');
+const http = require('http');
 const https = require('https');
 const core = require('@actions/core');
 
 try {
   const serverHostname = core.getInput('serverhostname');
   const port = core.getInput('port');
+  const protocol = core.getInput('protocol');
   const apiKey = core.getInput('apikey');
   const project = core.getInput('project');
   const projectName = core.getInput('projectname');
@@ -15,6 +17,11 @@ try {
   if (project == "" && (projectName == "" || projectVersion == "")) {
     throw 'project or projectName + projectVersion must be set'
   }
+
+  if (protocol != "http" && protocol != "https") {
+    throw 'protocol "' + protocol + '" not supported, must be one of: https, http'
+  }
+  const client = (protocol == "http") ? http : https
 
   console.log(`Reading BOM: ${bomFilename}...`);
   const bomContents = fs.readFileSync(bomFilename);
@@ -36,6 +43,7 @@ try {
   const requestOptions = {
     hostname: serverHostname,
     port: port,
+    protocol: protocol + ':',
     path: '/api/v1/bom',
     method: 'PUT',
     headers: {
@@ -47,7 +55,7 @@ try {
 
   console.log(`Uploading to Dependency-Track server ${serverHostname}...`);
 
-  const req = https.request(requestOptions, (res) => {
+  const req = client.request(requestOptions, (res) => {
     console.log('Response status code:', res.statusCode);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       console.log('Finished uploading BOM to Dependency-Track server.')
@@ -60,7 +68,7 @@ try {
     console.error(`Problem with request: ${e.message}`);
     core.setFailed(e.message);
   });
-  
+
   req.write(postData);
   req.end();
 
